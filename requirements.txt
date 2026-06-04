@@ -1,0 +1,2 @@
+# Vercel installs from the project root. Reuse the backend's pinned deps.
+-r backend/requirements.txt

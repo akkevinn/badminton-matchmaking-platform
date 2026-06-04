@@ -31,36 +31,36 @@ lsof -ti :8000 | xargs kill -9
 
 ---
 
-## Deploy on GCP Spot VM
+## Deploy free on Render + Turso
 
-### Prerequisites
-- Docker and Docker Compose installed on the VM
-- Port 8000 open in the VM's firewall rules
+The app runs on **Render** (free web service, runs the `Dockerfile`) and stores
+data in **Turso** (free hosted SQLite). No code changes are needed between local
+and production — set two env vars and Turso takes over from the local file.
 
-### Steps
+### 1. Create the Turso database
+Install the CLI (`brew install tursodatabase/tap/turso`), then:
 ```bash
-# 1. Copy the project to the VM (from your local machine)
-gzip -c badminton-matchmaking-platform | ssh user@VM_IP 'cat | tar -xz'
-
-# 2. SSH into the VM
-ssh user@VM_IP
-
-# 3. Start the container
-cd badminton-matchmaking-platform
-docker compose up -d
+turso auth signup                       # or: turso auth login
+turso db create badminton               # create the database
+turso db show badminton --url           # -> libsql://badminton-<org>.turso.io  (TURSO_DATABASE_URL)
+turso db tokens create badminton        # -> a long token              (TURSO_AUTH_TOKEN)
 ```
 
-Access the app at **http://VM_EXTERNAL_IP:8000**
+### 2. Deploy on Render
+1. Push this repo to GitHub (already done).
+2. On [render.com](https://render.com): **New → Blueprint**, pick this repo. Render
+   reads `render.yaml` and provisions a free Docker web service.
+3. In the service's **Environment** tab, set the two secrets from step 1:
+   - `TURSO_DATABASE_URL`
+   - `TURSO_AUTH_TOKEN`
+4. Deploy. Render builds the `Dockerfile` and gives you a public
+   `https://badminton-matchmaking.onrender.com` URL.
 
-### Useful Docker commands
-```bash
-docker compose logs -f        # live logs
-docker compose restart        # restart after a code change
-docker compose down           # stop
-docker compose down -v        # stop and delete the database volume
-```
+Tables are created automatically on first startup (`init_db()`).
 
-The database is stored in a Docker volume (`badminton_data`) and survives container restarts.
+> **Note:** Render's free tier sleeps the service after ~15 min of inactivity, so
+> the first request after idle takes ~30–50s to wake. Data lives in Turso, so it
+> persists across sleeps, restarts, and redeploys.
 
 ---
 
@@ -101,10 +101,10 @@ badminton-matchmaking-platform/
 ## Tech Stack
 | Layer    | Technology |
 |----------|-----------|
-| Backend  | Python · FastAPI · SQLite (SQLAlchemy) |
+| Backend  | Python · FastAPI · SQLite / Turso (SQLAlchemy) |
 | Frontend | Vanilla HTML / CSS / JavaScript |
 | Images   | Pillow (Instagram story generator) |
-| Deploy   | Docker · docker-compose |
+| Deploy   | Docker · Render (compute) · Turso (database) |
 
 ---
 

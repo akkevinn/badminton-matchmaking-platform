@@ -8,6 +8,12 @@ TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL")  # e.g. libsql://my-db
 TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
 
 if TURSO_DATABASE_URL:
+    if not TURSO_AUTH_TOKEN:
+        raise RuntimeError(
+            "TURSO_DATABASE_URL is set but TURSO_AUTH_TOKEN is missing/empty. "
+            "Set TURSO_AUTH_TOKEN in your host's environment variables (Production scope) "
+            "and redeploy."
+        )
     host = TURSO_DATABASE_URL.replace("libsql://", "").replace("https://", "").rstrip("/")
     DATABASE_URL = f"sqlite+libsql://{host}?authToken={TURSO_AUTH_TOKEN}&secure=true"
     connect_args = {}

@@ -5,9 +5,9 @@
 set -e
 
 # ── Configuration ─────────────────────────────────────────
-VM_IP="34.101.108.123"       # e.g. 34.101.123.45  (copy from GCP console)
-VM_USER="antoniokevin"            # your Google account name (part before the @)
-SSH_KEY="$HOME/.ssh/id_rsa"       # path to your SSH private key
+VM_IP="${VM_IP:?Set VM_IP, e.g. export VM_IP=34.101.123.45 (copy from GCP console)}"
+VM_USER="${VM_USER:?Set VM_USER, e.g. export VM_USER=yourname (Google account, part before @)}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"   # path to your SSH private key
 PROJECT_DIR="badminton-matchmaking-platform"
 ZIP_NAME="prunus-deploy.tar.gz"
 # ──────────────────────────────────────────────────────────

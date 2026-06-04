@@ -15,8 +15,10 @@ if TURSO_DATABASE_URL:
             "and redeploy."
         )
     host = TURSO_DATABASE_URL.replace("libsql://", "").replace("https://", "").rstrip("/")
-    DATABASE_URL = f"sqlite+libsql://{host}?authToken={TURSO_AUTH_TOKEN}&secure=true"
-    connect_args = {}
+    # The auth token MUST go through connect_args (the dialect ignores an
+    # authToken query param); `secure=true` selects the wss/https transport.
+    DATABASE_URL = f"sqlite+libsql://{host}?secure=true"
+    connect_args = {"auth_token": TURSO_AUTH_TOKEN}
 else:
     DB_PATH = os.environ.get("DB_PATH", "badminton.db")
     DATABASE_URL = f"sqlite:///{DB_PATH}"

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Badminton Matchmaking — Prunus Sport</title>
+  <link rel="icon" href="/assets/prunus-sport.png" type="image/png" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    // Apply saved theme before render to avoid flash
+    (function() {
+      const t = localStorage.getItem("theme") || "light";
+      if (t === "dark") document.documentElement.setAttribute("data-theme", "dark");
+    })();
+  </script>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div id="brand-link" style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+      <img src="/assets/prunus-sport.png" alt="Prunus Sport" onerror="this.style.display='none'" />
+      <h1>Prunus Sport <span>Badminton</span></h1>
+    </div>
+    <button id="theme-toggle" title="Toggle theme">☀️</button>
+  </header>
+  <nav>
+    <button id="nav-tournaments" class="active">🏆 Tournaments</button>
+    <button id="nav-players">👤 Players</button>
+  </nav>
+  <main>
+    <div id="main-content">
+      <div class="empty">Loading…</div>
+    </div>
+  </main>
+</div>
+<div id="toast-container"></div>
+<script type="module" src="/static/js/app.js?v=2"></script>
+</body>
+</html>

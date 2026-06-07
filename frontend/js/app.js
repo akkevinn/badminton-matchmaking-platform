@@ -18,6 +18,10 @@ document.addEventListener("DOMContentLoaded", () => {
   loadView("tournaments");
 });
 
+// Sport helpers (default to badminton for older tournaments without a sport)
+const sportIcon  = (s) => (s === "padel" ? "🎾" : "🏸");
+const sportLabel = (s) => (s === "padel" ? "🎾 Padel" : "🏸 Badminton");
+
 function setupTheme() {
   const btn = document.getElementById("theme-toggle");
   const apply = (theme) => {
@@ -91,10 +95,11 @@ function renderTournamentList(main) {
         </div>
       </div>` : state.tournaments.map(t => `
       <div class="t-card" data-tid="${t.id}">
-        <div class="t-card-icon">${t.status === "finished" ? "🏆" : "🏸"}</div>
+        <div class="t-card-icon">${t.status === "finished" ? "🏆" : sportIcon(t.sport)}</div>
         <div class="t-card-body">
           <div class="t-card-name">${t.name}</div>
           <div class="t-card-meta">
+            <span>${sportLabel(t.sport)}</span>
             <span>${t.num_courts} court${t.num_courts > 1 ? "s" : ""}</span>
             <span>${t.max_points} pts${t.deuce_enabled ? " · deuce" : ""}</span>
             <span>${fmtDate(t.created_at)}</span>
@@ -128,6 +133,13 @@ function openNewTournamentModal() {
       <label>Tournament Name</label>
       <input id="t-name" type="text" placeholder="e.g. Saturday Session" />
     </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label>Sport</label>
+      <select id="t-sport">
+        <option value="badminton" selected>🏸 Badminton</option>
+        <option value="padel">🎾 Padel</option>
+      </select>
+    </div>
     <div class="form-row" style="margin-bottom:16px">
       <div class="form-group">
         <label>Courts</label>
@@ -154,6 +166,7 @@ function openNewTournamentModal() {
     try {
       const t = await api.createTournament({
         name,
+        sport: document.getElementById("t-sport").value,
         num_courts: parseInt(document.getElementById("t-courts").value),
         max_points: parseInt(document.getElementById("t-pts").value),
         deuce_enabled: document.getElementById("t-deuce").checked,
@@ -227,6 +240,7 @@ function renderTournamentView(main) {
 
       <div class="card">
         <div class="card-title">Tournament Info</div>
+        <div class="stat-row"><span class="stat-label">Sport</span><span class="stat-value">${sportLabel(t.sport)}</span></div>
         <div class="stat-row"><span class="stat-label">Courts</span><span class="stat-value">${t.num_courts}</span></div>
         <div class="stat-row"><span class="stat-label">Max Points</span><span class="stat-value">${t.max_points}${t.deuce_enabled ? " (deuce)" : ""}</span></div>
         <div class="stat-row"><span class="stat-label">Rounds</span><span class="stat-value">${rounds.length}</span></div>

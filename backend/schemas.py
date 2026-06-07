@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 
 
@@ -26,6 +26,7 @@ class PlayerOut(BaseModel):
 # Tournament
 class TournamentCreate(BaseModel):
     name: str
+    sport: Literal["badminton", "padel"] = "badminton"
     num_courts: int = Field(1, ge=1, le=4)
     max_points: int = Field(21, ge=11)
     deuce_enabled: bool = True
@@ -41,6 +42,7 @@ class TournamentUpdate(BaseModel):
 class TournamentOut(BaseModel):
     id: int
     name: str
+    sport: str
     num_courts: int
     max_points: int
     deuce_enabled: bool

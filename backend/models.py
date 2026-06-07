@@ -20,6 +20,7 @@ class Tournament(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    sport = Column(String, default="badminton")  # badminton | padel
     num_courts = Column(Integer, default=1)
     max_points = Column(Integer, default=21)
     deuce_enabled = Column(Boolean, default=True)

@@ -146,6 +146,8 @@ def update_score(tid: int, match_id: int, data: MatchScoreUpdate, db: Session = 
         raise HTTPException(404, "Match not found")
     if m.status == "finished":
         raise HTTPException(400, "Match already finished")
+    if m.status != "ongoing":
+        raise HTTPException(400, "Start the match before entering a score")
 
     sa, sb = data.score_a, data.score_b
     max_pts = t.max_points

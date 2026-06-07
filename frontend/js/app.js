@@ -332,7 +332,8 @@ function renderCourtCard(m, t) {
   const sumB    = m.team_b.reduce((s,id) => s + skillOf(id), 0);
   const winA    = m.status === "finished" && m.score_a > m.score_b;
   const winB    = m.status === "finished" && m.score_b > m.score_a;
-  const editable = m.status !== "finished" && t.status !== "finished";
+  const canScore = m.status === "ongoing" && t.status !== "finished";
+  const canAct   = m.status !== "finished" && t.status !== "finished";
 
   return `
     <div class="court-card ${m.status}">
@@ -372,13 +373,14 @@ function renderCourtCard(m, t) {
         </div>
       </div>
 
-      ${editable ? `
+      ${canScore ? `
       <div class="score-inputs">
         <input id="score-a-${m.id}" type="number" min="0" max="99" value="${m.score_a ?? ""}" placeholder="0" />
         <span class="score-sep">:</span>
         <input id="score-b-${m.id}" type="number" min="0" max="99" value="${m.score_b ?? ""}" placeholder="0" />
         <button class="btn btn-ghost btn-sm" onclick="saveScore(${m.id})">Save</button>
-      </div>
+      </div>` : ""}
+      ${canAct ? `
       <div class="match-actions">
         ${m.status === "pending" ? `<button class="btn btn-orange btn-sm" onclick="startMatch(${m.id})">▶ Start</button>` : ""}
         ${m.status === "ongoing" ? `<button class="btn btn-success btn-sm" onclick="finishMatch(${m.id})">✓ Finish</button>` : ""}

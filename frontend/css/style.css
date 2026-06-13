@@ -606,26 +606,11 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
     grid-template-columns: 1fr !important;
   }
 
-  /* ── Tables — hide less important columns on mobile */
-  .hide-mobile { display: none !important; }
-
-  /* Leaderboard detailed: hide +Comp and Pts columns, keep W L Total */
-  table th:nth-child(3),   /* Skill */
-  table td:nth-child(3),
-  table th:nth-child(4),   /* GP */
-  table td:nth-child(4),
-  table th:nth-child(7),   /* Pts */
-  table td:nth-child(7),
-  table th:nth-child(8),   /* +Comp */
-  table td:nth-child(8) { display: none; }
-
-  /* Player table: hide Created column */
-  .player-table th:nth-child(3),
-  .player-table td:nth-child(3) { display: none; }
-
-  /* Match history: hide Court column */
-  .history-table th:nth-child(2),
-  .history-table td:nth-child(2) { display: none; }
+  /* ── Tables — scroll horizontally on mobile instead of cutting columns,
+        so the full leaderboard and match history stay reachable by swiping. */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-wrap table { width: max-content; min-width: 100%; }
+  .table-wrap th, .table-wrap td { white-space: nowrap; }
 
   /* ── Player status buttons — wrap tightly */
   .player-actions { display: flex; gap: 4px; flex-wrap: wrap; }

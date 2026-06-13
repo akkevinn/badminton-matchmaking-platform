@@ -246,7 +246,6 @@ function renderTournamentView(main) {
         <div class="stat-row"><span class="stat-label">Sport</span><span class="stat-value">${sportLabel(t.sport)}</span></div>
         <div class="stat-row"><span class="stat-label">Courts</span><span class="stat-value">${t.num_courts}</span></div>
         <div class="stat-row"><span class="stat-label">Max Points</span><span class="stat-value">${t.max_points}${t.deuce_enabled ? " (deuce)" : ""}</span></div>
-        <div class="stat-row"><span class="stat-label">Rounds</span><span class="stat-value">${rounds.length}</span></div>
         <div class="stat-row"><span class="stat-label">Matches finished</span><span class="stat-value">${state.matches.filter(m=>m.status==="finished").length} / ${state.matches.length}</span></div>
         <div class="stat-row"><span class="stat-label">Active players</span><span class="stat-value">${active.length}</span></div>
         <div class="stat-row" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">

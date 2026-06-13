@@ -22,6 +22,7 @@ class Tournament(Base):
     name = Column(String, nullable=False)
     sport = Column(String, default="badminton")  # badminton | padel
     num_courts = Column(Integer, default=1)
+    closed_courts = Column(JSON, default=list)  # court numbers retired mid-session
     max_points = Column(Integer, default=21)
     deuce_enabled = Column(Boolean, default=True)
     status = Column(String, default="active")  # active | finished

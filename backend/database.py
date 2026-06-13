@@ -51,10 +51,15 @@ def _run_migrations():
     from sqlalchemy import inspect, text
 
     insp = inspect(engine)
-    if "tournaments" in insp.get_table_names():
-        cols = {c["name"] for c in insp.get_columns("tournaments")}
-        if "sport" not in cols:
-            with engine.begin() as conn:
-                conn.execute(
-                    text("ALTER TABLE tournaments ADD COLUMN sport VARCHAR DEFAULT 'badminton'")
-                )
+    if "tournaments" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("tournaments")}
+    stmts = []
+    if "sport" not in cols:
+        stmts.append("ALTER TABLE tournaments ADD COLUMN sport VARCHAR DEFAULT 'badminton'")
+    if "closed_courts" not in cols:
+        stmts.append("ALTER TABLE tournaments ADD COLUMN closed_courts TEXT DEFAULT '[]'")
+    if stmts:
+        with engine.begin() as conn:
+            for stmt in stmts:
+                conn.execute(text(stmt))

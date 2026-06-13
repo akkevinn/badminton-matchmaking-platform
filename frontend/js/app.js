@@ -183,10 +183,13 @@ function openNewTournamentModal() {
 function renderTournamentView(main) {
   const t = state.currentTournament;
   const active = state.tournamentPlayers.filter(p => p.status === "active");
-  const rounds = [...new Set(state.matches.map(m => m.round_number))].sort((a,b) => b-a);
-  const latestRound = rounds[0];
-  const currentMatches = latestRound ? state.matches.filter(m => m.round_number === latestRound) : [];
-  const hasOpenMatches = currentMatches.some(m => m.status !== "finished");
+  const numCourts = t.num_courts;
+  const closedCourts = new Set(t.closed_courts || []);
+  // The live (pending/ongoing) match on each court, if any.
+  const liveByCourt = {};
+  state.matches.forEach(m => { if (m.status !== "finished") liveByCourt[m.court] = m; });
+  const anyFreeCourt = Array.from({ length: numCourts }, (_, i) => i + 1)
+    .some(c => !closedCourts.has(c) && !liveByCourt[c]);
 
   main.innerHTML = `
     <div class="t-view-header" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
@@ -254,17 +257,18 @@ function renderTournamentView(main) {
 
     <div class="card">
       <div class="section-header">
-        <h2>${latestRound ? `Round ${latestRound}` : "Matches"}</h2>
+        <h2>Courts</h2>
         <div style="display:flex;gap:8px;align-items:center">
-          ${latestRound ? `<span style="color:var(--text3);font-size:.8rem">${currentMatches.filter(m=>m.status==="finished").length}/${currentMatches.length} finished</span>` : ""}
-          ${t.status !== "finished" && !hasOpenMatches
-            ? `<button class="btn btn-primary btn-sm" id="btn-gen-matches">⚡ Next Round</button>`
+          ${t.status !== "finished" && anyFreeCourt
+            ? `<button class="btn btn-primary btn-sm" id="btn-fill-all">⚡ Fill all free courts</button>`
             : ""}
         </div>
       </div>
-      ${currentMatches.length === 0
-        ? `<div class="empty"><div class="empty-icon">🎯</div>Click "Next Round" to generate matches.</div>`
-        : `<div class="courts-grid" id="courts-grid">${currentMatches.map(m => renderCourtCard(m, t)).join("")}</div>`}
+      <div class="courts-grid" id="courts-grid">
+        ${Array.from({ length: numCourts }, (_, i) =>
+          renderCourt(i + 1, t, liveByCourt[i + 1], closedCourts.has(i + 1))
+        ).join("")}
+      </div>
     </div>
 
     <div class="card" id="leaderboard-card">
@@ -318,7 +322,7 @@ function renderTournamentView(main) {
     document.getElementById("lb-tab-detailed").className = "btn btn-sm btn-ghost";
     document.getElementById("lb-tab-simple").className   = "btn btn-sm btn-primary";
   };
-  document.getElementById("btn-gen-matches")?.addEventListener("click", generateRound);
+  document.getElementById("btn-fill-all")?.addEventListener("click", generateAllFreeCourts);
   document.getElementById("btn-add-player")?.addEventListener("click", () => openAddPlayerModal());
   document.getElementById("btn-rename-tournament").onclick = () =>
     openRenameTournamentModal(t.id, t.name, /* fromView */ true);
@@ -330,6 +334,9 @@ function renderTournamentView(main) {
   window.saveScore     = (mid) => doSaveScore(mid);
   window.setPlayerStatus = (tpId, status) => doSetPlayerStatus(tpId, status);
   window.openTeamEditor = (mid) => doOpenTeamEditorModal(mid);
+  window.nextMatch     = (court) => generateForCourt(court);
+  window.closeCourt    = (court) => doCloseCourt(court);
+  window.reopenCourt   = (court) => doOpenCourt(court);
 }
 
 function countGames(playerId) {
@@ -337,6 +344,41 @@ function countGames(playerId) {
     m.status === "finished" &&
     (m.team_a.includes(playerId) || m.team_b.includes(playerId))
   ).length;
+}
+
+// Decide what to show for a single court: a live match, a free slot, or closed.
+function renderCourt(courtNum, t, match, isClosed) {
+  const tActive = t.status !== "finished";
+
+  if (isClosed) {
+    return `
+    <div class="court-card closed-court" style="opacity:.6">
+      <div class="court-header">
+        <span class="court-label">Court ${courtNum}</span>
+        <span class="chip chip-finished-t">Closed</span>
+      </div>
+      <div class="empty" style="padding:18px 8px">⏹ Court closed (booking ended).</div>
+      ${tActive ? `<div class="match-actions">
+        <button class="btn btn-ghost btn-sm" onclick="reopenCourt(${courtNum})">↩ Reopen court</button>
+      </div>` : ""}
+    </div>`;
+  }
+
+  if (match) return renderCourtCard(match, t);
+
+  // Free, open court — offer a per-court match or closing it.
+  return `
+    <div class="court-card pending">
+      <div class="court-header">
+        <span class="court-label">Court ${courtNum}</span>
+        <span class="chip chip-pending">Free</span>
+      </div>
+      <div class="empty" style="padding:18px 8px">🎯 No match yet.</div>
+      ${tActive ? `<div class="match-actions">
+        <button class="btn btn-primary btn-sm" onclick="nextMatch(${courtNum})">⚡ Next Match</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeCourt(${courtNum})">⏹ Close court</button>
+      </div>` : ""}
+    </div>`;
 }
 
 function renderCourtCard(m, t) {
@@ -533,10 +575,34 @@ function playerNames(ids) {
 
 // ─── Actions ──────────────────────────────────────────────
 
-async function generateRound() {
+async function generateForCourt(court) {
+  try {
+    await api.generateMatches(state.currentTournament.id, court);
+    toast(`Court ${court}: new match`, "success");
+    await refreshTournamentView();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function generateAllFreeCourts() {
   try {
     await api.generateMatches(state.currentTournament.id);
-    toast("New round generated", "success");
+    toast("Free courts filled", "success");
+    await refreshTournamentView();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function doCloseCourt(court) {
+  try {
+    state.currentTournament = await api.closeCourt(state.currentTournament.id, court);
+    toast(`Court ${court} closed`, "success");
+    await refreshTournamentView();
+  } catch (e) { toast(e.message, "error"); }
+}
+
+async function doOpenCourt(court) {
+  try {
+    state.currentTournament = await api.openCourt(state.currentTournament.id, court);
+    toast(`Court ${court} reopened`, "success");
     await refreshTournamentView();
   } catch (e) { toast(e.message, "error"); }
 }

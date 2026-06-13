@@ -27,6 +27,8 @@ export const api = {
   renameTournament: (id, name) => req("PATCH", `/api/tournaments/${id}`, { name }),
   deleteTournament: (id) => req("DELETE", `/api/tournaments/${id}`),
   finishTournament: (id) => req("POST", `/api/tournaments/${id}/finish`),
+  closeCourt: (id, court) => req("POST", `/api/tournaments/${id}/courts/${court}/close`),
+  openCourt: (id, court) => req("POST", `/api/tournaments/${id}/courts/${court}/open`),
 
   // Tournament players
   getTournamentPlayers: (tid) => req("GET", `/api/tournaments/${tid}/players`),
@@ -35,7 +37,7 @@ export const api = {
 
   // Matches
   getMatches: (tid) => req("GET", `/api/tournaments/${tid}/matches`),
-  generateMatches: (tid) => req("POST", `/api/tournaments/${tid}/matches/generate`),
+  generateMatches: (tid, court) => req("POST", `/api/tournaments/${tid}/matches/generate${court ? `?court=${court}` : ""}`),
   startMatch: (tid, mid) => req("PATCH", `/api/tournaments/${tid}/matches/${mid}/start`),
   updateScore: (tid, mid, data) => req("PATCH", `/api/tournaments/${tid}/matches/${mid}/score`, data),
   finishMatch: (tid, mid) => req("PATCH", `/api/tournaments/${tid}/matches/${mid}/finish`),

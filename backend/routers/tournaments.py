@@ -158,3 +158,47 @@ def finish_tournament(tid: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(t)
     return t
+
+
+# --- Court management (close / reopen for variable booking times) ---
+
+def _require_court(t: Tournament, court: int):
+    if court < 1 or court > t.num_courts:
+        raise HTTPException(400, f"Court must be between 1 and {t.num_courts}")
+
+
+@router.post("/{tid}/courts/{court}/close", response_model=TournamentOut)
+def close_court(tid: int, court: int, db: Session = Depends(get_db)):
+    t = db.get(Tournament, tid)
+    if not t:
+        raise HTTPException(404, "Tournament not found")
+    _require_court(t, court)
+
+    live = db.query(Match).filter(
+        Match.tournament_id == tid,
+        Match.court == court,
+        Match.status.in_(["pending", "ongoing"]),
+    ).count()
+    if live > 0:
+        raise HTTPException(400, "Finish the current game before closing this court")
+
+    closed = list(t.closed_courts or [])
+    if court not in closed:
+        closed.append(court)
+    t.closed_courts = sorted(closed)
+    db.commit()
+    db.refresh(t)
+    return t
+
+
+@router.post("/{tid}/courts/{court}/open", response_model=TournamentOut)
+def open_court(tid: int, court: int, db: Session = Depends(get_db)):
+    t = db.get(Tournament, tid)
+    if not t:
+        raise HTTPException(404, "Tournament not found")
+    _require_court(t, court)
+
+    t.closed_courts = [c for c in (t.closed_courts or []) if c != court]
+    db.commit()
+    db.refresh(t)
+    return t

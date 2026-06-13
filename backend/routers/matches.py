@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session, joinedload
 from backend.database import get_db
 from backend.models import Match, Tournament, TournamentPlayer
 from backend.schemas import MatchScoreUpdate, MatchOut
-from backend.services.matchmaking import generate_round
+from backend.services.matchmaking import pick_matches
 from backend.services.leaderboard import compute_leaderboard
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/tournaments/{tid}/matches", tags=["matches"])
@@ -66,52 +66,83 @@ def list_matches(tid: int, db: Session = Depends(get_db)):
 
 
 @router.post("/generate", status_code=201)
-def generate_matches(tid: int, db: Session = Depends(get_db)):
+def generate_matches(tid: int, court: Optional[int] = None, db: Session = Depends(get_db)):
+    """
+    Fill free courts with new matches.
+
+    - `?court=N` fills just court N (per-court "Next Match").
+    - no `court` fills every free, open court at once ("Fill all free courts").
+
+    Players currently in a live (pending/ongoing) match on another court are
+    excluded, so courts advance independently without double-booking anyone.
+    """
     t = _get_tournament(tid, db)
     if t.status == "finished":
         raise HTTPException(400, "Tournament is finished")
 
-    # Check no ongoing matches exist
-    ongoing = db.query(Match).filter(Match.tournament_id == tid, Match.status.in_(["pending", "ongoing"])).count()
-    if ongoing > 0:
-        raise HTTPException(400, "Finish or cancel existing matches before generating new ones")
+    closed = set(t.closed_courts or [])
+
+    # Players and courts occupied by a live match right now.
+    live = db.query(Match).filter(
+        Match.tournament_id == tid, Match.status.in_(["pending", "ongoing"])
+    ).all()
+    busy_ids: set = set()
+    occupied_courts: set = set()
+    for m in live:
+        occupied_courts.add(m.court)
+        for pid in (m.team_a or []) + (m.team_b or []):
+            busy_ids.add(pid)
+
+    # Decide which courts to fill.
+    if court is not None:
+        if court < 1 or court > t.num_courts:
+            raise HTTPException(400, f"Court must be between 1 and {t.num_courts}")
+        if court in closed:
+            raise HTTPException(400, "Court is closed — reopen it first")
+        if court in occupied_courts:
+            raise HTTPException(400, "Court already has an active match")
+        target_courts = [court]
+    else:
+        target_courts = [
+            c for c in range(1, t.num_courts + 1)
+            if c not in closed and c not in occupied_courts
+        ]
+        if not target_courts:
+            raise HTTPException(400, "No free courts to fill")
 
     stats = _player_stats(tid, db)
-    if len(stats) < 4:
-        raise HTTPException(400, "Need at least 4 active players to generate matches")
+    available = [p for p in stats.values() if p["id"] not in busy_ids]
+    if len(available) < 4:
+        raise HTTPException(400, "Need at least 4 available players (others are still playing)")
 
-    last_round = db.query(Match).filter(Match.tournament_id == tid).order_by(Match.round_number.desc()).first()
-    current_round = (last_round.round_number + 1) if last_round else 1
+    # Recent teammate pairs (last few matches) to avoid immediate repeats.
+    recent = (
+        db.query(Match)
+        .filter(Match.tournament_id == tid)
+        .order_by(Match.id.desc())
+        .limit(max(t.num_courts, 1))
+        .all()
+    )
+    recent_pairs: set = set()
+    for m in recent:
+        for team in (m.team_a or [], m.team_b or []):
+            if len(team) == 2:
+                recent_pairs.add(frozenset(team))
 
-    # Build teammate-pair set from the most recent round to avoid
-    # scheduling the same pair as teammates in back-to-back rounds.
-    last_round_pairs: set = set()
-    if last_round:
-        prev_matches = (
-            db.query(Match)
-            .filter(Match.tournament_id == tid, Match.round_number == last_round.round_number)
-            .all()
-        )
-        for m in prev_matches:
-            a = m.team_a or []
-            b = m.team_b or []
-            if len(a) == 2:
-                last_round_pairs.add(frozenset(a))
-            if len(b) == 2:
-                last_round_pairs.add(frozenset(b))
-
-    players_list = list(stats.values())
-    court_matches = generate_round(players_list, t.num_courts, current_round, last_round_pairs)
-
-    if not court_matches:
-        raise HTTPException(400, "Not enough eligible players to form matches")
+    picks = pick_matches(available, len(target_courts), recent_pairs)
+    if not picks:
+        raise HTTPException(400, "Not enough available players to form a match")
 
     created = []
-    for court_idx, (team_a, team_b) in enumerate(court_matches, start=1):
+    for court_num, (team_a, team_b) in zip(target_courts, picks):
+        # round_number is per-court: this court's Nth match.
+        prev_on_court = db.query(Match).filter(
+            Match.tournament_id == tid, Match.court == court_num
+        ).count()
         m = Match(
             tournament_id=tid,
-            court=court_idx,
-            round_number=current_round,
+            court=court_num,
+            round_number=prev_on_court + 1,
             team_a=team_a,
             team_b=team_b,
             status="pending",

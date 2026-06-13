@@ -1,18 +1,18 @@
 """
 Matchmaking service.
 
+Courts advance independently: a match is generated for whichever court is
+free, drawn from the players who are not currently playing on another court.
+
 Rules (in priority order):
-1. Hard rest: a player may NOT play three consecutive rounds.
-   Relaxed only when fewer than 4 eligible players remain.
-2. No repeated teammate pair in back-to-back rounds.
-   (heavy penalty — avoided unless every split has a repeated pair)
-3. Fairness: the 4 players with the fewest games always play next.
-   Players with more games only fill a slot when not enough low-game
-   players are available.
-4. Skill balance: among the 3 possible team splits for those 4 players,
-   pick the split with the lowest absolute skill difference.
-5. Two consecutive rounds for a player are allowed; the rest-aware sort
-   naturally rotates them when games counts are equal.
+1. Availability: only players not already in a live match are eligible
+   (the caller filters these out before calling pick_matches).
+2. Fairness: the players with the fewest games played play next. Players
+   who just finished have a higher count, so they yield to rested players.
+3. No repeated teammate pair from recent matches (heavy penalty — avoided
+   unless every split repeats a pair).
+4. Skill balance: among the 3 possible team splits for the chosen 4
+   players, pick the split with the lowest absolute skill difference.
 """
 
 import math
@@ -20,66 +20,57 @@ import random
 from typing import List, Tuple, Dict, Set, FrozenSet
 
 
-def generate_round(
-    active_players: List[Dict],
-    num_courts: int,
-    current_round: int,
-    last_round_pairs: Set[FrozenSet] = None,
+def pick_matches(
+    available_players: List[Dict],
+    num_to_fill: int,
+    recent_pairs: Set[FrozenSet] = None,
 ) -> List[Tuple[List[int], List[int]]]:
     """
-    Build one round of matches.
+    Fill up to `num_to_fill` courts from the available player pool.
+
+    Courts advance independently, so this works on whoever is free right
+    now rather than a synchronised round.
 
     Parameters
     ----------
-    active_players : list of player dicts, all with status='active'
-        Required keys: id, skill, games_played, last_match_round,
-        second_last_match_round
-    num_courts : how many simultaneous courts
-    current_round : 1-based round number being generated
-    last_round_pairs : set of frozenset({id1, id2}) — teammate pairs
-        from the immediately preceding round.  Pass set() or omit for
-        the first round.
+    available_players : list of player dicts — active players who are NOT
+        currently in a pending/ongoing match. Required keys: id, skill,
+        games_played.
+    num_to_fill : how many courts to fill this call (>=1)
+    recent_pairs : set of frozenset({id1, id2}) — recent teammate pairs to
+        avoid repeating. Pass set() or omit to skip.
 
     Returns
     -------
-    list of (team_a_ids, team_b_ids) — one tuple per court filled.
+    list of (team_a_ids, team_b_ids) — one tuple per court filled, using
+    non-overlapping players.
     """
-    if last_round_pairs is None:
-        last_round_pairs = set()
+    if recent_pairs is None:
+        recent_pairs = set()
 
-    if len(active_players) < 4:
+    eligible = list(available_players)
+    if len(eligible) < 4 or num_to_fill < 1:
         return []
-
-    # ── Rule 1: hard rest — exclude anyone who played both preceding rounds ──
-    must_rest = {
-        p["id"] for p in active_players
-        if p.get("last_match_round") == current_round - 1
-        and p.get("second_last_match_round") == current_round - 2
-    }
-    eligible = [p for p in active_players if p["id"] not in must_rest]
-    if len(eligible) < 4:
-        eligible = list(active_players)          # relax when pool is too small
 
     # Shuffle first so equal-priority players rotate randomly.
     # Python's sort is stable, so the shuffle order is preserved within
-    # tied game-count groups — this is what mixes up pairings across rounds.
+    # tied game-count groups — this is what mixes up pairings over time.
     random.shuffle(eligible)
 
-    # Sort by fewest games only; tie-breaking is already randomised by the
-    # shuffle above.  A rest-based secondary key would re-introduce the
-    # deterministic group-alternation that makes rounds repeat.
+    # Fairness: fewest games played first. Players who just finished a game
+    # have a higher count, so they naturally yield to rested players.
     eligible.sort(key=lambda p: p["games_played"])
 
     matches  = []
     used_ids: set = set()
-    courts_to_fill = min(num_courts, len(eligible) // 4)
+    courts_to_fill = min(num_to_fill, len(eligible) // 4)
 
     for _ in range(courts_to_fill):
         candidates = [p for p in eligible if p["id"] not in used_ids]
         if len(candidates) < 4:
             break
 
-        # ── Rule 3: always pick the 4 least-played available players ─────────
+        # ── Always pick the 4 least-played available players ─────────────────
         four = candidates[:4]
 
         # ── Rules 2 & 4: find the best team split ────────────────────────────
@@ -100,7 +91,7 @@ def generate_round(
                 sum(p["skill"] for p in ta) - sum(p["skill"] for p in tb)
             )
 
-            # Rule 2: penalise repeated teammate pairs from last round
+            # Penalise repeated teammate pairs from recent matches
             # (weight 1000 >> any skill_diff, so it's effectively a hard
             # constraint — but falls back to best skill balance if all
             # three splits repeat a pair)
@@ -109,7 +100,7 @@ def generate_round(
                     frozenset({ta[0]["id"], ta[1]["id"]}),
                     frozenset({tb[0]["id"], tb[1]["id"]}),
                 )
-                if pair in last_round_pairs
+                if pair in recent_pairs
             )
 
             score = repeated * 1000 + skill_diff

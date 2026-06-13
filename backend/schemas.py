@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Literal
 from datetime import datetime
 
@@ -44,6 +44,7 @@ class TournamentOut(BaseModel):
     name: str
     sport: str
     num_courts: int
+    closed_courts: List[int] = []
     max_points: int
     deuce_enabled: bool
     status: str
@@ -51,6 +52,11 @@ class TournamentOut(BaseModel):
     finished_at: Optional[datetime]
 
     model_config = {"from_attributes": True}
+
+    @field_validator("closed_courts", mode="before")
+    @classmethod
+    def _default_closed_courts(cls, v):
+        return v or []
 
 
 # Tournament Player
